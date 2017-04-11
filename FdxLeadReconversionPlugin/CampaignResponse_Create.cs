@@ -57,6 +57,9 @@ namespace FdxLeadReconversionPlugin
                     if (campaignResponse.Attributes.Contains("emailaddress"))
                         email = campaignResponse.Attributes["emailaddress"].ToString();
 
+                    firstName =  firstName.Replace("'", " ");
+                    lastName = lastName.Replace("'", " ");
+
                     #region Get Contact and Lead collection....
                     //fetch xml query for lead matching....
                     string leadXmlQuery = "<fetch top='50' ><entity name='lead' ><all-attributes/><filter type='or' ><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone1' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone2' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='emailaddress1' operator='eq' value='{2}' /></filter></filter><order attribute='createdon' /></entity></fetch>";
