@@ -247,7 +247,7 @@ namespace FdxLeadReconversionPlugin
             {
                 _destinationEntity["fdx_reconversion"] = true;//new OptionSetValue(1);
                 _destinationEntity["fdx_lasttouchpoint"] = _campaignResponse.Attributes["regardingobjectid"];
-                _destinationEntity["fdx_lasttouchpointdate"] = _campaignResponse.Attributes["createdon"];
+                _destinationEntity["fdx_lasttouchpointdate"] = _campaignResponse.Attributes["receivedon"];
                 _service.Update(_destinationEntity);
             }
             catch (Exception ex)
