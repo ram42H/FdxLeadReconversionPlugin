@@ -285,8 +285,8 @@ namespace FdxLeadReconversionPlugin
                 lead["fdx_zippostalcode"] = _campaignResponse.Attributes["fdx_zippostalcode"];
                 lead["campaignid"] = _campaignResponse.Attributes["regardingobjectid"];
                 lead["relatedobjectid"] = new EntityReference("campaignresponse",_campaignResponse.Id);
-                if (_campaignResponse.Attributes.Contains("fdx_credentials"))
-                    lead["fdx_credentials"] = _campaignResponse.Attributes["fdx_credentials"];
+                if (_campaignResponse.Attributes.Contains("fdx_credential"))
+                    lead["fdx_credential"] = _campaignResponse.Attributes["fdx_credential"];
                 if (_campaignResponse.Attributes.Contains("fdx_telephone1"))
                     lead["telephone1"] = _campaignResponse.Attributes["fdx_telephone1"];
                 if (_campaignResponse.Attributes.Contains("fdx_jobtitlerole"))
