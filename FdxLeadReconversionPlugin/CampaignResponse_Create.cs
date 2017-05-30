@@ -309,6 +309,10 @@ namespace FdxLeadReconversionPlugin
                     lead["fdx_stateprovince"] = _campaignResponse.Attributes["fdx_stateprovince"];
                 if (_campaignResponse.Attributes.Contains("fdx_address1_country"))
                     lead["address1_country"] = _campaignResponse.Attributes["fdx_address1_country"];
+
+                if (((OptionSetValue)_campaignResponse.Attributes["channeltypecode"]).Value == 4)
+                    lead["ownerid"] = new EntityReference("systemuser", ((EntityReference)_campaignResponse.Attributes["ownerid"]).Id);
+
                 _service.Create(lead);
             }
             catch(Exception ex)
