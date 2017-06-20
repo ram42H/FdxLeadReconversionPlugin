@@ -43,6 +43,7 @@ namespace FdxLeadReconversionPlugin
                     Entity lead = new Entity();
                     EntityCollection contacts = new EntityCollection();
                     EntityCollection leads = new EntityCollection();
+                    EntityCollection opportunities = new EntityCollection();
                     FetchExpression query;
                     string firstName = "";
                     string lastName = "";
@@ -62,10 +63,10 @@ namespace FdxLeadReconversionPlugin
 
                     #region Get Contact and Lead collection....
                     //fetch xml query for lead matching....
-                    string leadXmlQuery = "<fetch top='50' ><entity name='lead' ><all-attributes/><filter type='or' ><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone1' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone2' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='emailaddress1' operator='eq' value='{2}' /></filter></filter><order attribute='createdon' /></entity></fetch>";
+                    string leadXmlQuery = "<fetch top='5000' ><entity name='lead' ><all-attributes/><filter type='or' ><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone1' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone2' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='emailaddress1' operator='eq' value='{2}' /></filter></filter><order attribute='createdon' /></entity></fetch>";
 
                     //fetch xml query for contact matching...
-                    string contactXmlQuery = "<fetch top='50' ><entity name='contact' ><all-attributes/><filter type='or' ><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone1' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone2' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='emailaddress1' operator='eq' value='{2}' /></filter></filter>    <order attribute='createdon' descending='true' /></entity></fetch>";
+                    string contactXmlQuery = "<fetch top='5000' ><entity name='contact' ><all-attributes/><filter type='or' ><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone1' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='telephone2' operator='eq' value='{1}' /></filter><filter type='and' ><condition attribute='fullname' operator='eq' value='{0}' /><condition attribute='emailaddress1' operator='eq' value='{2}' /></filter></filter>    <order attribute='createdon' descending='true' /></entity></fetch>";
 
                     //fetch leads....
                     step = 3;
@@ -134,8 +135,27 @@ namespace FdxLeadReconversionPlugin
                         //this.tagCampaignResponse(new Entity("fdx_contactcampaignresponse"), campaignResponse, activeContact, "fdx_contact", service);
                         campaignResponse["fdx_reconversioncontact"] = new EntityReference("contact", activeContact);
 
+                        #region Get oldest open Opportunities where parent contact is active contact...
+                        step = 15;
+                        string oppXmlQuery = "<fetch top='1' ><entity name='opportunity' ><attribute name='opportunityid' /><filter type='and' ><condition attribute='statecode' operator='eq' value='0' /><condition attribute='parentcontactid' operator='eq' value='{0}' /></filter><order attribute='createdon' /></entity></fetch>";
+                        query = new FetchExpression(string.Format(oppXmlQuery, activeContact.ToString()));
+                        opportunities = service.RetrieveMultiple(query);
+                        int oppCount = opportunities.Entities.Count;
+                        if(oppCount > 0)
+                        {
+                            //Update flag and last touch point on the related opportunity....
+                            step = 151;
+                            this.updateEntity(new Entity("opportunity") { Id = opportunities.Entities[0].Id }, campaignResponse, service);
+
+                            //tag campaign response to opportunity....
+                            step = 152;
+                            campaignResponse["fdx_reconversionopportunity"] = new EntityReference("opportunity", opportunities.Entities[0].Id);
+                        }
+                        
+                        #endregion
+
                         step = 9;
-                        if(openLead != Guid.Empty) //If there is a open lead....
+                        if (openLead != Guid.Empty) //If there is a open lead....
                         {
                             //Update flag and last touch point on lead....
                             step = 91;
@@ -145,24 +165,26 @@ namespace FdxLeadReconversionPlugin
                             //this.tagCampaignResponse(new Entity("fdx_leadcampaignresponse"), campaignResponse, openLead, "fdx_lead", service);
                             campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", openLead);
                         }
-                        else if(qualifiedLead != Guid.Empty) //If there is a qualified lead....
-                        {
-                            //Get related opportunity....
-                            step = 93;
-                            QueryExpression oppQuery = CRMQueryExpression.getQueryExpression("opportunity", new ColumnSet("opportunityid"), new CRMQueryExpression[] { new CRMQueryExpression("originatingleadid", ConditionOperator.Equal, qualifiedLead)});
-                            EntityCollection oppCollection = service.RetrieveMultiple(oppQuery);
-                            if(oppCollection.Entities.Count > 0)
-                            {
-                                //Update flag and last touch point on the related opportunity....
-                                step = 94;
-                                this.updateEntity(new Entity("opportunity") { Id = oppCollection.Entities[0].Id }, campaignResponse, service);
-                                //tag campaign response to opportunity....
-                                step = 95;
-                                //this.tagCampaignResponse(new Entity("fdx_opportunitycampaignresponse"), campaignResponse, oppCollection.Entities[0].Id, "fdx_opportunity", service);
-                                campaignResponse["fdx_reconversionopportunity"] = new EntityReference("opportunity",oppCollection.Entities[0].Id);
-                            }
-                        }
-                        else if(disqualifiedLead == Guid.Empty) //If there is no disqualifed lead....
+                        #region (code comment) for qualified Lead scenario....
+                        //else if (qualifiedLead != Guid.Empty) //If there is a qualified lead....
+                        //{
+                        //    //Get related opportunity....
+                        //    step = 93;
+                        //    QueryExpression oppQuery = CRMQueryExpression.getQueryExpression("opportunity", new ColumnSet("opportunityid"), new CRMQueryExpression[] { new CRMQueryExpression("originatingleadid", ConditionOperator.Equal, qualifiedLead) });
+                        //    EntityCollection oppCollection = service.RetrieveMultiple(oppQuery);
+                        //    if (oppCollection.Entities.Count > 0)
+                        //    {
+                        //        //Update flag and last touch point on the related opportunity....
+                        //        step = 94;
+                        //        this.updateEntity(new Entity("opportunity") { Id = oppCollection.Entities[0].Id }, campaignResponse, service);
+                        //        //tag campaign response to opportunity....
+                        //        step = 95;
+                        //        //this.tagCampaignResponse(new Entity("fdx_opportunitycampaignresponse"), campaignResponse, oppCollection.Entities[0].Id, "fdx_opportunity", service);
+                        //        campaignResponse["fdx_reconversionopportunity"] = new EntityReference("opportunity", oppCollection.Entities[0].Id);
+                        //    }
+                        //}
+                        #endregion
+                        else if (disqualifiedLead == Guid.Empty && oppCount == 0) //If there is no disqualifed lead....
                         {
                             //Create a new lead....
                             step = 96;
