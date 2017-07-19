@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.ServiceModel;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace FdxLeadReconversionPlugin
@@ -54,7 +55,8 @@ namespace FdxLeadReconversionPlugin
                     if (campaignResponse.Attributes.Contains("lastname"))
                         lastName = campaignResponse.Attributes["lastname"].ToString();
                     if (campaignResponse.Attributes.Contains("telephone"))
-                        phone = campaignResponse.Attributes["telephone"].ToString();
+                        phone = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
+                        //phone = campaignResponse.Attributes["telephone"].ToString();
                     if (campaignResponse.Attributes.Contains("emailaddress"))
                         email = campaignResponse.Attributes["emailaddress"].ToString();
 
@@ -300,7 +302,8 @@ namespace FdxLeadReconversionPlugin
                 Entity lead = new Entity("lead");
                 if (_campaignResponse.Attributes.Contains("emailaddress"))
                     lead["emailaddress1"] = _campaignResponse.Attributes["emailaddress"];
-                lead["telephone2"] = _campaignResponse.Attributes["telephone"];
+                lead["telephone2"] = Regex.Replace(_campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
+                //lead["telephone2"] = _campaignResponse.Attributes["telephone"].ToString();
                 lead["firstname"] = _campaignResponse.Attributes["firstname"];
                 lead["lastname"] = _campaignResponse.Attributes["lastname"];
                 lead["leadsourcecode"] = _campaignResponse.Attributes["channeltypecode"];
@@ -310,7 +313,8 @@ namespace FdxLeadReconversionPlugin
                 if (_campaignResponse.Attributes.Contains("fdx_credential"))
                     lead["fdx_credential"] = _campaignResponse.Attributes["fdx_credential"];
                 if (_campaignResponse.Attributes.Contains("fdx_telephone1"))
-                    lead["telephone1"] = _campaignResponse.Attributes["fdx_telephone1"];
+                    lead["telephone1"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone1"].ToString(),@"[^0-9]+", "");
+                    //lead["telephone1"] = _campaignResponse.Attributes["fdx_telephone1"].ToString();
                 if (_campaignResponse.Attributes.Contains("fdx_jobtitlerole"))
                     lead["fdx_jobtitlerole"] = _campaignResponse.Attributes["fdx_jobtitlerole"];
                 if (_campaignResponse.Attributes.Contains("companyname"))
@@ -318,7 +322,8 @@ namespace FdxLeadReconversionPlugin
                 if (_campaignResponse.Attributes.Contains("fdx_websiteurl"))
                     lead["websiteurl"] = _campaignResponse.Attributes["fdx_websiteurl"];
                 if (_campaignResponse.Attributes.Contains("fdx_telephone3"))
-                    lead["telephone3"] = _campaignResponse.Attributes["fdx_telephone3"];
+                    lead["telephone3"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone3"].ToString(),@"[^0-9]+", "");
+                    //lead["telephone3"] = _campaignResponse.Attributes["fdx_telephone3"].ToString();
                 if (_campaignResponse.Attributes.Contains("fdx_address1_line1"))
                     lead["address1_line1"] = _campaignResponse.Attributes["fdx_address1_line1"];
                 if (_campaignResponse.Attributes.Contains("fdx_address1_line2"))
