@@ -39,6 +39,15 @@ namespace FdxLeadReconversionPlugin
                     //Get current user information....
                     WhoAmIResponse response = (WhoAmIResponse)service.Execute(new WhoAmIRequest());
 
+                    if (campaignResponse.Attributes.Contains("telephone"))
+                        campaignResponse.Attributes["telephone"] = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+","");
+
+                    if (campaignResponse.Attributes.Contains("fdx_telephone1"))
+                        campaignResponse.Attributes["fdx_telephone1"] = Regex.Replace(campaignResponse.Attributes["fdx_telephone1"].ToString(), @"[^0-9]+", "");
+
+                    if (campaignResponse.Attributes.Contains("fdx_telephone3"))
+                        campaignResponse.Attributes["fdx_telephone3"] = Regex.Replace(campaignResponse.Attributes["fdx_telephone3"].ToString(), @"[^0-9]+", "");
+
                     step = 2;
                     Entity contact = new Entity();
                     Entity lead = new Entity();
