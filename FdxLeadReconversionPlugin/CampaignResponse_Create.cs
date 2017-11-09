@@ -262,9 +262,12 @@ namespace FdxLeadReconversionPlugin
 
                     //Update campaign response....
                     step = 14;
-                    campaignResponse["statecode"] = new OptionSetValue(1);
-                    campaignResponse["statuscode"] = new OptionSetValue(2);
-                    service.Update(campaignResponse);
+                    if (campaignResponse.Attributes.Contains("subject") && campaignResponse.Attributes.Contains("channeltypecode") && campaignResponse.Attributes.Contains("regardingobjectid") && campaignResponse.Attributes.Contains("firstname") && campaignResponse.Attributes.Contains("lastname") && campaignResponse.Attributes.Contains("telephone") && campaignResponse.Attributes.Contains("fdx_zippostalcode"))
+                    {
+                        campaignResponse["statecode"] = new OptionSetValue(1);
+                        campaignResponse["statuscode"] = new OptionSetValue(2);
+                        service.Update(campaignResponse);
+                    }
 
                 }
                 catch (FaultException<OrganizationServiceFault> ex)
@@ -315,14 +318,28 @@ namespace FdxLeadReconversionPlugin
                 Entity lead = new Entity("lead");
                 if (_campaignResponse.Attributes.Contains("emailaddress"))
                     lead["emailaddress1"] = _campaignResponse.Attributes["emailaddress"];
-                lead["telephone2"] = Regex.Replace(_campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
+
+                if (_campaignResponse.Attributes.Contains("telephone"))
+                    lead["telephone2"] = Regex.Replace(_campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
                 //lead["telephone2"] = _campaignResponse.Attributes["telephone"].ToString();
-                lead["firstname"] = _campaignResponse.Attributes["firstname"];
-                lead["lastname"] = _campaignResponse.Attributes["lastname"];
-                lead["leadsourcecode"] = _campaignResponse.Attributes["channeltypecode"];
-                lead["fdx_zippostalcode"] = _campaignResponse.Attributes["fdx_zippostalcode"];
-                lead["campaignid"] = _campaignResponse.Attributes["regardingobjectid"];
+
+                if (_campaignResponse.Attributes.Contains("firstname"))
+                    lead["firstname"] = _campaignResponse.Attributes["firstname"];
+
+                if (_campaignResponse.Attributes.Contains("lastname"))
+                    lead["lastname"] = _campaignResponse.Attributes["lastname"];
+
+                if (_campaignResponse.Attributes.Contains("channeltypecode"))
+                    lead["leadsourcecode"] = _campaignResponse.Attributes["channeltypecode"];
+
+                if (_campaignResponse.Attributes.Contains("fdx_zippostalcode"))
+                    lead["fdx_zippostalcode"] = _campaignResponse.Attributes["fdx_zippostalcode"];
+
+                if (_campaignResponse.Attributes.Contains("regardingobjectid"))
+                    lead["campaignid"] = _campaignResponse.Attributes["regardingobjectid"];
+
                 lead["relatedobjectid"] = new EntityReference("campaignresponse",_campaignResponse.Id);
+
                 if (_campaignResponse.Attributes.Contains("fdx_credential"))
                     lead["fdx_credential"] = _campaignResponse.Attributes["fdx_credential"];
                 if (_campaignResponse.Attributes.Contains("fdx_telephone1"))
