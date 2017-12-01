@@ -257,17 +257,21 @@ namespace FdxLeadReconversionPlugin
                     else //New record....
                     {
                         step = 13;
-                        this.createdLead(campaignResponse, service);
+                        if (campaignResponse.Attributes.Contains("telephone") || campaignResponse.Attributes.Contains("emailaddress"))
+                            this.createdLead(campaignResponse, service);
                     }
 
                     //Update campaign response....
                     step = 14;
-                    if (campaignResponse.Attributes.Contains("subject") && campaignResponse.Attributes.Contains("channeltypecode") && campaignResponse.Attributes.Contains("regardingobjectid") && campaignResponse.Attributes.Contains("firstname") && campaignResponse.Attributes.Contains("lastname") && campaignResponse.Attributes.Contains("telephone") && campaignResponse.Attributes.Contains("fdx_zippostalcode"))
-                    {
-                        campaignResponse["statecode"] = new OptionSetValue(1);
-                        campaignResponse["statuscode"] = new OptionSetValue(2);
-                        service.Update(campaignResponse);
-                    }
+                    //if (campaignResponse.Attributes.Contains("subject") && campaignResponse.Attributes.Contains("channeltypecode") && campaignResponse.Attributes.Contains("regardingobjectid") && campaignResponse.Attributes.Contains("firstname") && campaignResponse.Attributes.Contains("lastname") && campaignResponse.Attributes.Contains("telephone") && campaignResponse.Attributes.Contains("fdx_zippostalcode"))
+                    //{
+                        if (campaignResponse.Attributes.Contains("telephone") || campaignResponse.Attributes.Contains("emailaddress"))
+                        {
+                            campaignResponse["statecode"] = new OptionSetValue(1);
+                            campaignResponse["statuscode"] = new OptionSetValue(2);
+                            service.Update(campaignResponse);
+                        }
+                    //}
 
                 }
                 catch (FaultException<OrganizationServiceFault> ex)
@@ -332,8 +336,17 @@ namespace FdxLeadReconversionPlugin
                 if (_campaignResponse.Attributes.Contains("channeltypecode"))
                     lead["leadsourcecode"] = _campaignResponse.Attributes["channeltypecode"];
 
-                if (_campaignResponse.Attributes.Contains("fdx_zippostalcode"))
-                    lead["fdx_zippostalcode"] = _campaignResponse.Attributes["fdx_zippostalcode"];
+                if (_campaignResponse.Attributes.Contains("fdx_zipcode"))
+                {
+                    //lead["fdx_zippostalcode"] = _campaignResponse.Attributes["fdx_zippostalcode"];
+                    QueryExpression zipQuery = CRMQueryExpression.getQueryExpression("fdx_zipcode", new ColumnSet("fdx_zipcode"), new CRMQueryExpression[] { new CRMQueryExpression("fdx_zipcode", ConditionOperator.Equal, _campaignResponse.Attributes["fdx_zipcode"].ToString()) });
+                    EntityCollection zipcodeCollection = _service.RetrieveMultiple(zipQuery);
+                    if ((zipcodeCollection.Entities.Count) > 0)
+                    {
+                        Entity zipCode = zipcodeCollection.Entities[0];
+                        lead["fdx_zippostalcode"] = new EntityReference("fdx_zipcode", zipCode.Id);
+                    }
+                }
 
                 if (_campaignResponse.Attributes.Contains("regardingobjectid"))
                     lead["campaignid"] = _campaignResponse.Attributes["regardingobjectid"];
