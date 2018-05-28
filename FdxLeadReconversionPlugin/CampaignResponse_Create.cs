@@ -256,9 +256,18 @@ namespace FdxLeadReconversionPlugin
                     }
                     else //New record....
                     {
+                        Guid leadGuid = Guid.Empty;
+
                         step = 13;
                         if (campaignResponse.Attributes.Contains("telephone") || campaignResponse.Attributes.Contains("emailaddress"))
-                            this.createdLead(campaignResponse, service);
+                            leadGuid = this.createdLead(campaignResponse, service);
+
+                        //Modified as part of S905....
+                        if (!(leadGuid == Guid.Empty))
+                        {
+                            campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", leadGuid);
+                            campaignResponse["fdx_sourcecampaignresponse"] = true;
+                        }
                     }
 
                     //Update campaign response....
@@ -315,9 +324,11 @@ namespace FdxLeadReconversionPlugin
             }
         }
 
-        private void createdLead(Entity _campaignResponse, IOrganizationService _service)
+        private Guid createdLead(Entity _campaignResponse, IOrganizationService _service)
         {
             int step = 131;
+            Guid leadGuid = Guid.Empty;
+
             try
             {
                 Entity lead = new Entity("lead");
@@ -404,7 +415,8 @@ namespace FdxLeadReconversionPlugin
                 if (((OptionSetValue)_campaignResponse.Attributes["channeltypecode"]).Value == 4)
                     lead["ownerid"] = new EntityReference("systemuser", ((EntityReference)_campaignResponse.Attributes["ownerid"]).Id);
                 step = 152;
-                _service.Create(lead);
+                leadGuid = _service.Create(lead);
+                return leadGuid;
             }
             catch (FaultException<OrganizationServiceFault> ex)
             {
