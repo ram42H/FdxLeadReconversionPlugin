@@ -40,7 +40,7 @@ namespace FdxLeadReconversionPlugin
                     WhoAmIResponse response = (WhoAmIResponse)service.Execute(new WhoAmIRequest());
 
                     if (campaignResponse.Attributes.Contains("telephone"))
-                        campaignResponse.Attributes["telephone"] = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+","");
+                        campaignResponse.Attributes["telephone"] = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(), @"[^0-9]+", "");
 
                     if (campaignResponse.Attributes.Contains("fdx_telephone1"))
                         campaignResponse.Attributes["fdx_telephone1"] = Regex.Replace(campaignResponse.Attributes["fdx_telephone1"].ToString(), @"[^0-9]+", "");
@@ -64,12 +64,12 @@ namespace FdxLeadReconversionPlugin
                     if (campaignResponse.Attributes.Contains("lastname"))
                         lastName = campaignResponse.Attributes["lastname"].ToString();
                     if (campaignResponse.Attributes.Contains("telephone"))
-                        phone = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
-                        //phone = campaignResponse.Attributes["telephone"].ToString();
+                        phone = Regex.Replace(campaignResponse.Attributes["telephone"].ToString(), @"[^0-9]+", "");
+                    //phone = campaignResponse.Attributes["telephone"].ToString();
                     if (campaignResponse.Attributes.Contains("emailaddress"))
                         email = campaignResponse.Attributes["emailaddress"].ToString();
 
-                    firstName =  firstName.Replace("'", " ");
+                    firstName = firstName.Replace("'", " ");
                     lastName = lastName.Replace("'", " ");
 
                     #region Get Contact and Lead collection....
@@ -92,9 +92,9 @@ namespace FdxLeadReconversionPlugin
 
                     #region Get Contacts status wise....
                     step = 5;
-                    Guid activeContact = new Guid ();
+                    Guid activeContact = new Guid();
                     Guid inactiveContact = new Guid();
-                    for(int i = 0; i < contacts.Entities.Count; i++)
+                    for (int i = 0; i < contacts.Entities.Count; i++)
                     {
                         if ((((OptionSetValue)contacts.Entities[i].Attributes["statecode"]).Value == 0) && (activeContact == Guid.Empty))
                         {
@@ -115,17 +115,17 @@ namespace FdxLeadReconversionPlugin
                     Guid openLead = new Guid();
                     Guid qualifiedLead = new Guid();
                     Guid disqualifiedLead = new Guid();
-                    for(int i = 0; i < leads.Entities.Count; i++)
+                    for (int i = 0; i < leads.Entities.Count; i++)
                     {
                         if ((((OptionSetValue)leads.Entities[i].Attributes["statecode"]).Value == 0) && (openLead == Guid.Empty))
                         {
                             openLead = leads.Entities[i].Id;
                         }
-                        else if((((OptionSetValue)leads.Entities[i].Attributes["statecode"]).Value == 1) && (qualifiedLead == Guid.Empty))
+                        else if ((((OptionSetValue)leads.Entities[i].Attributes["statecode"]).Value == 1) && (qualifiedLead == Guid.Empty))
                         {
                             qualifiedLead = leads.Entities[i].Id;
                         }
-                        else if((((OptionSetValue)leads.Entities[i].Attributes["statecode"]).Value == 2) && (disqualifiedLead == Guid.Empty))
+                        else if ((((OptionSetValue)leads.Entities[i].Attributes["statecode"]).Value == 2) && (disqualifiedLead == Guid.Empty))
                         {
                             disqualifiedLead = leads.Entities[i].Id;
                         }
@@ -135,7 +135,7 @@ namespace FdxLeadReconversionPlugin
                     }
                     #endregion
 
-                    if(activeContact != Guid.Empty)
+                    if (activeContact != Guid.Empty)
                     {
                         #region Active contact....
                         //Update flag and last touch point on the contact....
@@ -146,25 +146,84 @@ namespace FdxLeadReconversionPlugin
                         //this.tagCampaignResponse(new Entity("fdx_contactcampaignresponse"), campaignResponse, activeContact, "fdx_contact", service);
                         campaignResponse["fdx_reconversioncontact"] = new EntityReference("contact", activeContact);
 
-                        #region Get oldest open Opportunities where parent contact is active contact...
-                        step = 15;
-                        string oppXmlQuery = "<fetch top='1' ><entity name='opportunity' ><attribute name='opportunityid' /><filter type='and' ><condition attribute='statecode' operator='eq' value='0' /><condition attribute='parentcontactid' operator='eq' value='{0}' /></filter><order attribute='createdon' /></entity></fetch>";
-                        query = new FetchExpression(string.Format(oppXmlQuery, activeContact.ToString()));
-                        opportunities = service.RetrieveMultiple(query);
-                        int oppCount = opportunities.Entities.Count;
-                        if(oppCount > 0)
+                        //S985 - Update Contact CR's to its Account
+                        //QuerybyAttribute to get Account from contact
+
+                      //  QueryExpression ContactQuery = CRMQueryExpression.getQueryExpression("contact", new ColumnSet("parentcustomerid"), new CRMQueryExpression[] { new CRMQueryExpression("contactid", ConditionOperator.Equal, activeContact)});
+
+                        QueryByAttribute AccountQueryBycontactId = new QueryByAttribute("contact");
+                        AccountQueryBycontactId.AddAttributeValue("contactid", activeContact);
+                        AccountQueryBycontactId.ColumnSet = new ColumnSet("contactid", "parentcustomerid");
+                        EntityCollection contactrecords = service.RetrieveMultiple(AccountQueryBycontactId);
+                        EntityReference contacc = new EntityReference("account");
+                        int oppCount = 0;
+
+                        foreach (Entity contactrec in contactrecords.Entities)
                         {
-                            //Update flag and last touch point on the related opportunity....
-                            step = 151;
-                            this.updateEntity(new Entity("opportunity") { Id = opportunities.Entities[0].Id }, campaignResponse, service);
+                            if (contactrec.Attributes.Contains("parentcustomerid"))
+                            {
 
-                            //tag campaign response to opportunity....
-                            step = 152;
-                            campaignResponse["fdx_reconversionopportunity"] = new EntityReference("opportunity", opportunities.Entities[0].Id);
+                                contacc.Id = ((EntityReference)contactrec["parentcustomerid"]).Id;
+                                //Update Customer on Campaign response
+                                EntityReference ContAccount = new EntityReference("account", contacc.Id);
+
+                                Entity customer = new Entity("activityparty");
+                                customer.Attributes["partyid"] = ContAccount;
+                                EntityCollection Customerentity = new EntityCollection();
+                                Customerentity.Entities.Add(customer);
+                                campaignResponse["customer"] = Customerentity;
+                                tracingService.Trace("Contact CR updated to Account :" + ((EntityReference)contactrec["parentcustomerid"]).Name);
+
+                                #region Get oldest open Opportunities where parent contact is active contact...
+                                step = 15;
+                                string oppXmlQuery = "<fetch top='1' ><entity name='opportunity' ><attribute name='opportunityid' /><filter type='and' ><condition attribute='statecode' operator='eq' value='0' /><condition attribute='parentcontactid' operator='eq' value='{0}' /></filter><order attribute='createdon' /></entity></fetch>";
+                                query = new FetchExpression(string.Format(oppXmlQuery, activeContact.ToString()));
+                                opportunities = service.RetrieveMultiple(query);
+                                oppCount = opportunities.Entities.Count;
+                                if (oppCount > 0)
+                                {
+                                    //Update flag and last touch point on the related opportunity....
+                                    step = 151;
+                                    this.updateEntity(new Entity("opportunity") { Id = opportunities.Entities[0].Id }, campaignResponse, service);
+
+                                    //tag campaign response to opportunity....
+                                    step = 152;
+                                    campaignResponse["fdx_reconversionopportunity"] = new EntityReference("opportunity", opportunities.Entities[0].Id);
+                                }
+                                #endregion
+                            }
+                            else
+                            {
+                                //S985 - to handle if the opportunity's contact doesnt have an existing account and Update Opportunity CR's to its Account
+                                //QuerybyAttribute to get Account from Opportunity
+
+                                QueryByAttribute AccountQueryByoppoId = new QueryByAttribute("opportunity");
+                                AccountQueryByoppoId.AddAttributeValue("opportunityid", opportunities.Entities[0].Id);
+                                AccountQueryByoppoId.ColumnSet = new ColumnSet("opportunityid", "parentaccountid");
+                                EntityCollection opporecords = service.RetrieveMultiple(AccountQueryByoppoId);
+                                EntityReference opportacc = new EntityReference("account");
+
+                                foreach (Entity opporec in opporecords.Entities)
+                                {
+                                    if (opporec.Attributes.Contains("parentaccountid"))
+                                    {
+
+                                        opportacc.Id = ((EntityReference)opporec["parentaccountid"]).Id;
+                                        //Update Customer on Campaign response
+                                        EntityReference OppoAccount = new EntityReference("account", opportacc.Id);
+
+                                        Entity customer = new Entity("activityparty");
+                                        customer.Attributes["partyid"] = OppoAccount;
+                                        EntityCollection Customerentity = new EntityCollection();
+                                        Customerentity.Entities.Add(customer);
+                                        campaignResponse["customer"] = Customerentity;
+                                        tracingService.Trace("Opportunity CR updated to Account :" + ((EntityReference)opporec["parentaccountid"]).Name);
+                                    }
+                                }
+
+                            }
                         }
-                        
-                        #endregion
-
+                        tracingService.Trace("Opp count :" + oppCount);
                         step = 9;
                         if (openLead != Guid.Empty) //If there is a open lead....
                         {
@@ -175,7 +234,34 @@ namespace FdxLeadReconversionPlugin
                             step = 92;
                             //this.tagCampaignResponse(new Entity("fdx_leadcampaignresponse"), campaignResponse, openLead, "fdx_lead", service);
                             campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", openLead);
+
+                            //S985 - Update Lead CR's to its Account
+                            //QuerybyAttribute to get Account from Lead
+
+                            QueryByAttribute AccountQueryByleadId = new QueryByAttribute("lead");
+                            AccountQueryByleadId.AddAttributeValue("leadid", openLead);
+                            AccountQueryByleadId.ColumnSet = new ColumnSet("leadid", "parentaccountid");
+                            EntityCollection leadrecords = service.RetrieveMultiple(AccountQueryByleadId);
+                            EntityReference acc = new EntityReference("account");
+
+                            foreach (Entity leadrecord in leadrecords.Entities)
+                            {
+                                if (leadrecord.Attributes.Contains("parentaccountid"))
+                                {
+                                    acc.Id = ((EntityReference)leadrecord["parentaccountid"]).Id;
+
+                                    EntityReference LeadAccount = new EntityReference("account", acc.Id);
+
+                                    Entity customer = new Entity("activityparty");
+                                    customer.Attributes["partyid"] = LeadAccount;
+                                    EntityCollection Customerentity = new EntityCollection();
+                                    Customerentity.Entities.Add(customer);
+                                    campaignResponse["customer"] = Customerentity;
+                                    tracingService.Trace("Lead CR updated to Account :" + ((EntityReference)leadrecord["parentaccountid"]).Name);
+                                }
+                            }
                         }
+                       
                         #region (code comment) for qualified Lead scenario....
                         //else if (qualifiedLead != Guid.Empty) //If there is a qualified lead....
                         //{
@@ -195,8 +281,10 @@ namespace FdxLeadReconversionPlugin
                         //    }
                         //}
                         #endregion
+                        
                         else if (disqualifiedLead == Guid.Empty && oppCount == 0) //If there is no disqualifed lead....
                         {
+                            tracingService.Trace("Opp count :" + oppCount);
                             //Create a new lead....
                             step = 96;
                             //Start - Code comment by Ram as per SMART-581...
@@ -205,7 +293,7 @@ namespace FdxLeadReconversionPlugin
                         }
                         #endregion
                     }
-                    else if(inactiveContact != Guid.Empty)
+                    else if (inactiveContact != Guid.Empty)
                     {
                         #region Inactive contact....
                         step = 10;
@@ -218,6 +306,31 @@ namespace FdxLeadReconversionPlugin
                             step = 102;
                             //this.tagCampaignResponse(new Entity("fdx_leadcampaignresponse"), campaignResponse, openLead, "fdx_lead", service);
                             campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", openLead);
+                            //S985 - Update Lead CR's to its Account
+                            //QuerybyAttribute to get Account from Lead
+
+                            QueryByAttribute AccountQueryByleadId = new QueryByAttribute("lead");
+                            AccountQueryByleadId.AddAttributeValue("leadid", openLead);
+                            AccountQueryByleadId.ColumnSet = new ColumnSet("leadid", "parentaccountid");
+                            EntityCollection leadrecords = service.RetrieveMultiple(AccountQueryByleadId);
+                            EntityReference acc = new EntityReference("account");
+
+                            foreach (Entity leadrecord in leadrecords.Entities)
+                            {
+                                if (leadrecord.Attributes.Contains("parentaccountid"))
+                                {
+                                    acc.Id = ((EntityReference)leadrecord["parentaccountid"]).Id;
+
+                                    EntityReference LeadAccount = new EntityReference("account", acc.Id);
+
+                                    Entity customer = new Entity("activityparty");
+                                    customer.Attributes["partyid"] = LeadAccount;
+                                    EntityCollection Customerentity = new EntityCollection();
+                                    Customerentity.Entities.Add(customer);
+                                    campaignResponse["customer"] = Customerentity;
+                                }
+                            }
+
                         }
                         else //Create a new lead....
                         {
@@ -228,7 +341,7 @@ namespace FdxLeadReconversionPlugin
                         }
                         #endregion....
                     }
-                    else if(openLead != Guid.Empty) //Only open lead....
+                    else if (openLead != Guid.Empty) //Only open lead....
                     {
                         #region Only Open Lead....
                         step = 11;
@@ -239,9 +352,33 @@ namespace FdxLeadReconversionPlugin
                         step = 112;
                         //this.tagCampaignResponse(new Entity("fdx_leadcampaignresponse"), campaignResponse, openLead, "fdx_lead", service);
                         campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", openLead);
+                        //S985 - Update Lead CR's to its Account
+                        //QuerybyAttribute to get Account from Lead
+
+                        QueryByAttribute AccountQueryByleadId = new QueryByAttribute("lead");
+                        AccountQueryByleadId.AddAttributeValue("leadid", openLead);
+                        AccountQueryByleadId.ColumnSet = new ColumnSet("leadid", "parentaccountid");
+                        EntityCollection leadrecords = service.RetrieveMultiple(AccountQueryByleadId);
+                        EntityReference acc = new EntityReference("account");
+
+                        foreach (Entity leadrecord in leadrecords.Entities)
+                        {
+                            if (leadrecord.Attributes.Contains("parentaccountid"))
+                            {
+                                acc.Id = ((EntityReference)leadrecord["parentaccountid"]).Id;
+
+                                EntityReference LeadAccount = new EntityReference("account", acc.Id);
+
+                                Entity customer = new Entity("activityparty");
+                                customer.Attributes["partyid"] = LeadAccount;
+                                EntityCollection Customerentity = new EntityCollection();
+                                Customerentity.Entities.Add(customer);
+                                campaignResponse["customer"] = Customerentity;
+                            }
+                        }
                         #endregion
                     }
-                    else if(disqualifiedLead != Guid.Empty) //Only isqualified Lead....
+                    else if (disqualifiedLead != Guid.Empty) //Only isqualified Lead....
                     {
                         #region Only disqualified Lead....
                         step = 12;
@@ -252,6 +389,30 @@ namespace FdxLeadReconversionPlugin
                         step = 122;
                         //this.tagCampaignResponse(new Entity("fdx_leadcampaignresponse"), campaignResponse, disqualifiedLead, "fdx_lead", service);
                         campaignResponse["fdx_reconversionlead"] = new EntityReference("lead", disqualifiedLead);
+                        //S985 - Update Lead CR's to its Account
+                        //QuerybyAttribute to get Account from Lead
+
+                        QueryByAttribute AccountQueryByleadId = new QueryByAttribute("lead");
+                        AccountQueryByleadId.AddAttributeValue("leadid", disqualifiedLead);
+                        AccountQueryByleadId.ColumnSet = new ColumnSet("leadid", "parentaccountid");
+                        EntityCollection leadrecords = service.RetrieveMultiple(AccountQueryByleadId);
+                        EntityReference acc = new EntityReference("account");
+
+                        foreach (Entity leadrecord in leadrecords.Entities)
+                        {
+                            if (leadrecord.Attributes.Contains("parentaccountid"))
+                            {
+                                acc.Id = ((EntityReference)leadrecord["parentaccountid"]).Id;
+
+                                EntityReference LeadAccount = new EntityReference("account", acc.Id);
+
+                                Entity customer = new Entity("activityparty");
+                                customer.Attributes["partyid"] = LeadAccount;
+                                EntityCollection Customerentity = new EntityCollection();
+                                Customerentity.Entities.Add(customer);
+                                campaignResponse["customer"] = Customerentity;
+                            }
+                        }
                         #endregion
                     }
                     else //New record....
@@ -274,12 +435,12 @@ namespace FdxLeadReconversionPlugin
                     step = 14;
                     //if (campaignResponse.Attributes.Contains("subject") && campaignResponse.Attributes.Contains("channeltypecode") && campaignResponse.Attributes.Contains("regardingobjectid") && campaignResponse.Attributes.Contains("firstname") && campaignResponse.Attributes.Contains("lastname") && campaignResponse.Attributes.Contains("telephone") && campaignResponse.Attributes.Contains("fdx_zippostalcode"))
                     //{
-                        if (campaignResponse.Attributes.Contains("telephone") || campaignResponse.Attributes.Contains("emailaddress"))
-                        {
-                            campaignResponse["statecode"] = new OptionSetValue(1);
-                            campaignResponse["statuscode"] = new OptionSetValue(2);
-                            service.Update(campaignResponse);
-                        }
+                    if (campaignResponse.Attributes.Contains("telephone") || campaignResponse.Attributes.Contains("emailaddress"))
+                    {
+                        campaignResponse["statecode"] = new OptionSetValue(1);
+                        campaignResponse["statuscode"] = new OptionSetValue(2);
+                        service.Update(campaignResponse);
+                    }
                     //}
 
                 }
@@ -318,7 +479,7 @@ namespace FdxLeadReconversionPlugin
                 _destinationEntity[_sourceName] = _sourceid;
                 _service.Create(_destinationEntity);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw ex;
             }
@@ -337,7 +498,7 @@ namespace FdxLeadReconversionPlugin
 
                 step = 132;
                 if (_campaignResponse.Attributes.Contains("telephone"))
-                    lead["telephone2"] = Regex.Replace(_campaignResponse.Attributes["telephone"].ToString(),@"[^0-9]+", "");
+                    lead["telephone2"] = Regex.Replace(_campaignResponse.Attributes["telephone"].ToString(), @"[^0-9]+", "");
                 //lead["telephone2"] = _campaignResponse.Attributes["telephone"].ToString();
 
                 step = 133;
@@ -371,15 +532,15 @@ namespace FdxLeadReconversionPlugin
                     lead["campaignid"] = _campaignResponse.Attributes["regardingobjectid"];
 
                 step = 138;
-                lead["relatedobjectid"] = new EntityReference("campaignresponse",_campaignResponse.Id);
+                lead["relatedobjectid"] = new EntityReference("campaignresponse", _campaignResponse.Id);
 
                 step = 139;
                 if (_campaignResponse.Attributes.Contains("fdx_credential"))
                     lead["fdx_credential"] = _campaignResponse.Attributes["fdx_credential"];
                 step = 140;
                 if (_campaignResponse.Attributes.Contains("fdx_telephone1"))
-                    lead["telephone1"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone1"].ToString(),@"[^0-9]+", "");
-                    //lead["telephone1"] = _campaignResponse.Attributes["fdx_telephone1"].ToString();
+                    lead["telephone1"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone1"].ToString(), @"[^0-9]+", "");
+                //lead["telephone1"] = _campaignResponse.Attributes["fdx_telephone1"].ToString();
                 step = 141;
                 if (_campaignResponse.Attributes.Contains("fdx_jobtitlerole"))
                     lead["fdx_jobtitlerole"] = _campaignResponse.Attributes["fdx_jobtitlerole"];
@@ -391,8 +552,8 @@ namespace FdxLeadReconversionPlugin
                     lead["websiteurl"] = _campaignResponse.Attributes["fdx_websiteurl"];
                 step = 144;
                 if (_campaignResponse.Attributes.Contains("fdx_telephone3"))
-                    lead["telephone3"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone3"].ToString(),@"[^0-9]+", "");
-                    //lead["telephone3"] = _campaignResponse.Attributes["fdx_telephone3"].ToString();
+                    lead["telephone3"] = Regex.Replace(_campaignResponse.Attributes["fdx_telephone3"].ToString(), @"[^0-9]+", "");
+                //lead["telephone3"] = _campaignResponse.Attributes["fdx_telephone3"].ToString();
                 step = 145;
                 if (_campaignResponse.Attributes.Contains("fdx_address1_line1"))
                     lead["address1_line1"] = _campaignResponse.Attributes["fdx_address1_line1"];
